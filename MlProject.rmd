@@ -1,0 +1,92 @@
+---
+output: html_document
+---
+
+## Predicting Qualitative Outputs of Weight Lifting Exercises
+
+***
+
+#### Summary
+
+The main objective of this study is to utilize a machine learning approach to predict qualitative outputs of weight lifting exercises. In the last few years the advancement of technology and proliferation of human activity  tracker devices such as Jawbone Up, Nike FuelBand, and Fitbit has enabled researchers to collect large amounts of data about personal activity. The field of human activity recognition (HAR) has grown dramatically, reflecting its importance in many influential and important societal applications.
+
+As the first step I conducted some exploratory data analysis in order to attain a better understand of the HAR dataset. Followed by data pre-processing using our investigation input from exploratory data analysis to eliminate the effects of outliers and any other types of anomalies as much as possible. Next, I built a model using Random Forest as a learning method. Last not least, I conducted a cross validation using a subset of the training set. The model's accuracy is 99.6% with the "out of sample error" of 0.3%.
+
+#### Exploratory Data Analysis
+
+The data used in this study and more information are available at [Human Activity Recognition](http://groupware.les.inf.puc-rio.br/har#dataset) website. The dataset is comprise of information collected from accelerometers on the belt, forearm, arm, and dumbbell of 6 participants. They were asked to perform dumbbell lifts correctly and incorrectly in 5 different ways. According to HAR website the activates are categorized as follows: Class A: exactly according to the specification, Class B: throwing the elbows to the front, Class C: lifting the dumbbell only halfway, Class D: lowering the dumbbell only halfway and Class E: throwing the hips to the front.    
+
+Before building any models it is imperative to conduct some exploratory data analysis. In order to attain a better understand of the HAR dataset, first we start by loading all the required libraries and then load the training data into memory and replace all empty fields with NA to make the data processing easier. Also, the dataset contains "#DIV/0!"  values which are MS Excel auto-generated error when a number is divided either by zero or string. Please note the following code assumes the data source files are located in your R Studio work directory.
+
+```{r test, echo=FALSE}
+options(warn=-1)
+```
+
+```{r}
+library(ggplot2)
+library(lattice)
+library(caret)
+library(randomForest)
+dataset <- read.csv("pml-training.csv", na.strings = c("NA", "", "#DIV/0!"))
+```
+Now we need to find out the size of the dataset and  examining the internal structure of the dataset using dim() and summary() function for obtaining summary statistics. By examining the statistical information of summary table such as mean vs median we can identify outliers. Another indicator of an unusable variable is presence of high number of NA's. However for the lack of space the code below just displays 4 variables: columns 13, 14, 159 and 160.
+
+```{r}
+dim(dataset)
+summary(dataset[,c(13:14,159,160)])
+```
+The plot below shows the valum of each qualitative output classe.
+
+```{r}
+qplot(x=classe, data=dataset, ymax=..count.., geom="bar", fill=factor(classe)
+      , main="Volume of Qualitative Output Classes") +
+stat_bin(aes(label = sprintf("\n\n %.0f%%", ..count../sum(..count..)*100)),geom="text")
+```
+
+#### Pre-processing
+
+The main objective of this section is to eliminate the effects of outliers and any other types of anomalies as mush as possible.  In the previous section we identified the columns with high percentage of NA. Hence we will start by eliminating these columns. In this process we delete any column that has more than 98% NA rates. The first column is just an identifier field has not impact in our predictions and the. Also, we can delete the timestamps and dates.
+
+```{r}
+dataset <- dataset[,colSums(is.na(dataset)) < 1920]
+dataset <- dataset[,-c(1:7)]
+```
+Now that we have a reletvely cleaner dataset we need to split our training dataset into training and test for cross validation.
+
+```{r}
+inTrain <- createDataPartition(dataset$classe, p = 3/4,list = FALSE)
+training <- dataset[inTrain,]
+testCV <- dataset[-inTrain,]
+```
+
+#### Model Building
+
+In this section we select a proper learning method for classification. After reading and experimenting with different learning methods I decided to use Random Forest as a learning method. First we need to train our model with our training dataset.
+
+```{r}
+model <- randomForest(classe~.,data=training , na.action=na.exclude)
+```
+
+#### Cross Validation
+
+After building the model now we need to cross valuate it with our cross validation dataset that we created in Pre-processing section. Please note the real test data is not being used for the purpose of  cross validation assessment. The following code, first runs the prediction function using the cross validation test dataset and then uses confusionMatrix function to asses the model.
+
+```{r}
+prResult<- predict(model,testCV)
+confusionMatrix(testCV$classe,prResult)
+```
+As it is shown above the accuracy rate for our model is 99.6%. As part of our cross validation process we need to calculate out-of-sample estimate which can be calculated by subtracting one from our model's accuracy. Hence the out-of-sample error is 1-0.996= 0.0036 or simply 0.3%.
+
+#### Testing
+
+In the final stage we need to used the test data to test our model. First we need to load the file into the memory then we process the file using the same method that we used for the training set. We also need to add "classe" variable to our test data.
+
+
+```{r}
+test <- read.csv("pml-testing.csv", na.strings = c("NA", "", "#DIV/0!"))
+test["classe"] <- NA
+test <- test[,colnames(training)]
+results<-predict(model,test)
+results
+```
+
